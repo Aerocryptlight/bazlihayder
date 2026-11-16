@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Pulse: 5-Level Arcade Ping Pong</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-pink: #ff007f;
+            --neon-purple: #b537f2;
+            --neon-yellow: #ffe600;
+            --neon-green: #00ff66;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: radial-gradient(circle at center, #13092b 0%, #060212 100%);
+            color: #ffffff;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* Neon Glow Effects */
+        .neon-border {
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3), inset 0 0 15px rgba(0, 243, 255, 0.2);
+            border: 2px solid rgba(0, 243, 255, 0.6);
+        }
+
+        .neon-text-cyan {
+            text-shadow: 0 0 10px rgba(0, 243, 255, 0.8), 0 0 20px rgba(0, 243, 255, 0.4);
+        }
+
+        .neon-text-pink {
+            text-shadow: 0 0 10px rgba(255, 0, 127, 0.8), 0 0 20px rgba(255, 0, 127, 0.4);
+        }
+
+        /* Arcade Bubble Buttons */
+        .btn-arcade {
+            background: linear-gradient(135deg, #ff007f 0%, #7928ca 100%);
+            border: 2px solid #ff70b8;
+            box-shadow: 0 4px 15px rgba(255, 0, 127, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-arcade:hover {
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 6px 25px rgba(255, 0, 127, 0.8), inset 0 2px 6px rgba(255, 255, 255, 0.6);
+        }
+
+        .btn-arcade:active {
+            transform: translateY(1px) scale(0.98);
+        }
+
+        .btn-cyan {
+            background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+            border: 2px solid #7ae2ff;
+            box-shadow: 0 4px 15px rgba(0, 198, 255, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+        }
+
+        .btn-cyan:hover {
+            box-shadow: 0 6px 25px rgba(0, 198, 255, 0.8), inset 0 2px 6px rgba(255, 255, 255, 0.6);
+        }
+
+        /* Screen Shake Animation */
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            20% { transform: translate(-6px, 4px) rotate(-0.5deg); }
+            40% { transform: translate(6px, -4px) rotate(0.5deg); }
+            60% { transform: translate(-4px, -4px) rotate(-0.3deg); }
+            80% { transform: translate(4px, 4px) rotate(0.3deg); }
+        }
+
+        .shake-active {
+            animation: shake 0.25s ease-in-out;
+        }
+
+        /* Custom Scrollbar for Level Select if needed */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ff007f;
+            border-radius: 9999px;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-between p-2 sm:p-4">
+
+    <!-- Top Header & Scoreboard -->
+    <header class="w-full max-w-5xl flex flex-wrap items-center justify-between gap-2 px-4 py-2 rounded-2xl bg-slate-900/80 backdrop-blur-md neon-border z-10">
+        <!-- Player Score -->
+        <div class="flex items-center gap-3">
+            <div class="w-3 h-8 rounded-full bg-cyan-400 shadow-[0_0_12px_#00f3ff]"></div>
+            <div>
+                <div class="text-xs uppercase tracking-widest text-cyan-300 font-bold">Player (You)</div>
+                <div id="playerScore" class="font-orbitron text-2xl sm:text-3xl font-black text-white neon-text-cyan">0</div>
+            </div>
+        </div>
+
+        <!-- Level & Status Indicator -->
+        <div class="text-center flex flex-col items-center">
+            <div class="flex items-center gap-2">
+                <span id="levelBadge" class="px-3 py-0.5 rounded-full text-xs sm:text-sm font-orbitron font-bold bg-gradient-to-r from-purple-600 to-pink-600 border border-pink-400 shadow-[0_0_10px_rgba(255,0,127,0.5)]">
+                    LEVEL 1
+                </span>
+                <span id="levelTitle" class="text-xs sm:text-sm font-bold text-yellow-300 tracking-wider uppercase hidden sm:inline">
+                    Neon Warmup
+                </span>
+            </div>
+            <div class="text-[11px] text-slate-400 mt-0.5 tracking-wider">FIRST TO <span id="targetScoreDisplay" class="text-white font-bold">5</span> WINS</div>
+        </div>
+
+        <!-- AI Score -->
+        <div class="flex items-center gap-3 text-right">
+            <div>
+                <div id="aiName" class="text-xs uppercase tracking-widest text-pink-400 font-bold">AI Bot v1</div>
+                <div id="aiScore" class="font-orbitron text-2xl sm:text-3xl font-black text-white neon-text-pink">0</div>
+            </div>
+            <div id="aiColorIndicator" class="w-3 h-8 rounded-full bg-pink-500 shadow-[0_0_12px_#ff007f]"></div>
+        </div>
+    </header>
+
+    <!-- Main Game Arena Container -->
+    <main id="arenaContainer" class="relative w-full max-w-5xl flex-1 my-2 sm:my-3 rounded-3xl overflow-hidden neon-border bg-slate-950/90 shadow-2xl flex items-center justify-center">
+        
+        <!-- Interactive Game Canvas -->
+        <canvas id="gameCanvas" class="w-full h-full block cursor-none"></canvas>
+
+        <!-- Power-Up / Event Toast Notification -->
+        <div id="eventToast" class="pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-slate-900/90 border border-yellow-400/70 text-yellow-300 font-orbitron text-xs sm:text-sm font-bold tracking-wider shadow-[0_0_15px_rgba(255,230,0,0.4)] opacity-0 transition-opacity duration-300">
+            POWER UP!
+        </div>
+
+        <!-- Overlay Modal (Start Menu / Level Complete / Game Over) -->
+        <div id="gameOverlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-20 transition-all duration-300">
+            
+            <div id="overlayBadge" class="px-4 py-1 rounded-full text-xs font-orbitron font-bold tracking-widest bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 mb-3">
+                HARDCORE ARCADE EDITION
+            </div>
+
+            <h1 id="overlayTitle" class="font-orbitron text-3xl sm:text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-yellow-400 mb-3 drop-shadow-lg">
+                NEON PULSE PONG
+            </h1>
+
+            <p id="overlayDesc" class="max-w-lg text-slate-300 text-sm sm:text-base mb-6 leading-relaxed">
+                Conquer <span class="text-yellow-300 font-bold">5 Intense Levels</span>! Move with your <span class="text-cyan-300 font-bold">Mouse, Touch, or Up/Down Arrows</span>. Hit the ball with paddle momentum to trigger <span class="text-pink-400 font-bold">Super Curve Smash</span> shots!
+            </p>
+
+            <!-- Level Selector Pills -->
+            <div class="mb-6 w-full max-w-md">
+                <div class="text-xs uppercase tracking-widest text-slate-400 mb-2 font-bold">Select Starting Level (1 - 5)</div>
+                <div id="levelSelector" class="grid grid-cols-5 gap-2">
+                    <!-- Buttons injected by JS -->
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap items-center justify-center gap-4">
+                <button id="primaryActionBtn" class="btn-arcade px-8 py-3.5 rounded-2xl font-orbitron font-bold text-base sm:text-lg text-white tracking-wider uppercase cursor-pointer">
+                    START LEVEL 1
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bottom External Control Bar -->
+    <footer class="w-full max-w-5xl flex flex-wrap items-center justify-between gap-2 px-4 py-2 rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-700/70 z-10">
+        <!-- Controls Hint -->
+        <div class="text-xs sm:text-sm text-slate-300 flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+            <span class="hidden md:inline">Move: <strong>Mouse / W-S / ↑-↓</strong> | Hit moving paddle for <strong>Spin</strong></span>
+            <span class="md:hidden">Drag anywhere on board to move</span>
+        </div>
+
+        <!-- Interactive External Buttons -->
+        <div class="flex items-center gap-2 sm:gap-3 ml-auto">
+            <button id="soundToggleBtn" class="btn-cyan px-3.5 py-2 rounded-xl font-orbitron text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer" title="Toggle Synth Audio">
+                <span id="soundIcon">🔊</span>
+                <span class="hidden sm:inline" id="soundText">SFX ON</span>
+            </button>
+
+            <button id="pauseBtn" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 font-orbitron text-xs font-bold text-cyan-300 transition cursor-pointer">
+                ⏸ PAUSE
+            </button>
+
+            <button id="menuBtn" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 font-orbitron text-xs font-bold text-pink-400 transition cursor-pointer">
+                ☰ LEVELS
+            </button>
+        </div>
+    </footer>
+
+    <script>
+        /**
+         * NEON PULSE: 5-LEVEL ARCADE PING PONG
+         * Complete self-contained interactive game with procedural WebAudio synth,
+         * particle physics, dynamic level hazards, and predictive hard-difficulty AI.
+         */
+
+        // ==========================================
+        // 1. AUDIO SYNTHESIZER ENGINE (Tone.js)
+        // ==========================================
+        class SoundEngine {
+            constructor() {
+                this.enabled = true;
+                this.initialized = false;
+                this.synth = null;
+                this.polySynth = null;
+            }
+
+            async init() {
+                if (this.initialized) return;
+                try {
+                    await Tone.start();
+                    this.synth = new Tone.Synth({
+                        oscillator: { type: 'triangle' },
+                        envelope: { attack: 0.005, decay: 0.1, sustain: 0.05, release: 0.1 }
+                    }).toDestination();
+
+                    this.polySynth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'sawtooth' },
+                        envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.3 }
+                    }).toDestination();
+                    this.polySynth.volume.value = -8;
+                    this.initialized = true;
+                } catch (e) {
+                    console.warn("Audio init deferred:", e);
+                }
+            }
+
+            playPaddleHit(isSmash = false) {
+                if (!this.enabled || !this.initialized) return;
+                const note = isSmash ? "C6" : "G4";
+                this.synth.triggerAttackRelease(note, "32n");
+            }
+
+            playWallHit() {
+                if (!this.enabled || !this.initialized) return;
+                this.synth.triggerAttackRelease("C4", "64n");
+            }
+
+            playPowerUp() {
+                if (!this.enabled || !this.initialized) return;
+                const now = Tone.now();
+                this.synth.triggerAttackRelease("E5", "32n", now);
+                this.synth.triggerAttackRelease("G5", "32n", now + 0.06);
+                this.synth.triggerAttackRelease("C6", "16n", now + 0.12);
+            }
+
+            playScore(playerWonPoint) {
+                if (!this.enabled || !this.initialized) return;
+                const now = Tone.now();
+                if (playerWonPoint) {
+                    this.polySynth.triggerAttackRelease(["C5", "E5", "G5"], "16n", now);
+                } else {
+                    this.polySynth.triggerAttackRelease(["F3", "Ab3", "C4"], "8n", now);
+                }
+            }
+
+            playLevelUp() {
+                if (!this.enabled || !this.initialized) return;
+                const now = Tone.now();
+                this.polySynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n", now);
+                this.polySynth.triggerAttackRelease(["G4", "B4", "D5", "G5"], "4n", now + 0.2);
+            }
+        }
+
+        const audio = new SoundEngine();
+
+        // ==========================================
+        // 2. LEVEL CONFIGURATIONS (HARD DIFFICULTY)
+        // ==========================================
+        const LEVELS = [
+            {
+                level: 1,
+                title: "Neon Warmup",
+                aiName: "Striker v1",
+                targetScore: 5,
+                ballBaseSpeed: 8.5,
+                ballMaxSpeed: 15,
+                aiSpeed: 6.8,
+                aiReactionError: 18,
+                paddleHeightRatio: 0.19,
+                primaryColor: "#00f3ff",
+                aiColor: "#ff007f",
+                bgGridColor: "rgba(0, 243, 255, 0.07)",
+                obstacles: [],
+                powerUpsEnabled: true,
+                description: "Fast-paced baseline duel. Watch out for curve shots!"
+            },
+            {
+                level: 2,
+                title: "Cyber Twin Pillars",
+                aiName: "Viper v2",
+                targetScore: 5,
+                ballBaseSpeed: 9.5,
+                ballMaxSpeed: 16.5,
+                aiSpeed: 7.8,
+                aiReactionError: 12,
+                paddleHeightRatio: 0.175,
+                primaryColor: "#00ff66",
+                aiColor: "#ff9900",
+                bgGridColor: "rgba(0, 255, 102, 0.07)",
+                // Static mid-field neon bumpers
+                obstacles: [
+                    { xRatio: 0.5, yRatio: 0.28, w: 16, h: 75, vy: 0, color: "#ffe600" },
+                    { xRatio: 0.5, yRatio: 0.72, w: 16, h: 75, vy: 0, color: "#ffe600" }
+                ],
+                powerUpsEnabled: true,
+                description: "Two energy pillars guard the center line, causing chaotic deflections!"
+            },
+            {
+                level: 3,
+                title: "Quantum Pendulum",
+                aiName: "Phantom v3",
+                targetScore: 6,
+                ballBaseSpeed: 10.5,
+                ballMaxSpeed: 18,
+                aiSpeed: 8.8,
+                aiReactionError: 8,
+                paddleHeightRatio: 0.16,
+                primaryColor: "#b537f2",
+                aiColor: "#00f3ff",
+                bgGridColor: "rgba(181, 55, 242, 0.08)",
+                // Moving central laser barrier
+                obstacles: [
+                    { xRatio: 0.5, yRatio: 0.5, w: 18, h: 110, vy: 3.5, color: "#ff007f" }
+                ],
+                powerUpsEnabled: true,
+                description: "A high-speed moving laser barrier patrols the center. AI predicts trajectories!"
+            },
+            {
+                level: 4,
+                title: "Hyperdrive Vortex",
+                aiName: "Nemesis v4",
+                targetScore: 6,
+                ballBaseSpeed: 11.5,
+                ballMaxSpeed: 20,
+                aiSpeed: 9.8,
+                aiReactionError: 4,
+                paddleHeightRatio: 0.15,
+                primaryColor: "#ffe600",
+                aiColor: "#ff2a2a",
+                bgGridColor: "rgba(255, 230, 0, 0.07)",
+                // Dual counter-moving gates
+                obstacles: [
+                    { xRatio: 0.42, yRatio: 0.25, w: 15, h: 85, vy: 4.2, color: "#00f3ff" },
+                    { xRatio: 0.58, yRatio: 0.75, w: 15, h: 85, vy: -4.2, color: "#ff007f" }
+                ],
+                powerUpsEnabled: true,
+                description: "Dual opposing gates + hyper-accelerated ball physics. Reflexes pushed to the limit!"
+            },
+            {
+                level: 5,
+                title: "OMEGA OVERLORD",
+                aiName: "OMEGA GOD-AI",
+                targetScore: 7,
+                ballBaseSpeed: 12.5,
+                ballMaxSpeed: 22.5,
+                aiSpeed: 11.2,
+                aiReactionError: 1,
+                paddleHeightRatio: 0.14,
+                primaryColor: "#ff007f",
+                aiColor: "#ffe600",
+                bgGridColor: "rgba(255, 0, 127, 0.1)",
+                // Triple chaotic matrix
+                obstacles: [
+                    { xRatio: 0.5, yRatio: 0.5, w: 20, h: 90, vy: 5.0, color: "#ffe600" },
+                    { xRatio: 0.38, yRatio: 0.2, w: 14, h: 65, vy: -3.8, color: "#00f3ff" },
+                    { xRatio: 0.62, yRatio: 0.8, w: 14, h: 65, vy: 3.8, color: "#00ff66" }
+                ],
+                powerUpsEnabled: true,
+                description: "FINAL BOSS: Near-perfect predictive AI, triple moving barriers, and lethal ball spin!"
+            }
+        ];
+
+        // ==========================================
+        // 3. GAME STATE & DOM ELEMENTS
+        // ==========================================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const arenaContainer = document.getElementById('arenaContainer');
+
+        // UI Elements
+        const playerScoreEl = document.getElementById('playerScore');
+        const aiScoreEl = document.getElementById('aiScore');
+        const levelBadgeEl = document.getElementById('levelBadge');
+        const levelTitleEl = document.getElementById('levelTitle');
+        const targetScoreDisplayEl = document.getElementById('targetScoreDisplay');
+        const aiNameEl = document.getElementById('aiName');
+        const aiColorIndicatorEl = document.getElementById('aiColorIndicator');
+        const eventToastEl = document.getElementById('eventToast');
+
+        // Overlay Elements
+        const gameOverlay = document.getElementById('gameOverlay');
+        const overlayBadge = document.getElementById('overlayBadge');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlayDesc = document.getElementById('overlayDesc');
+        const levelSelector = document.getElementById('levelSelector');
+        const primaryActionBtn = document.getElementById('primaryActionBtn');
+
+        // Control Buttons
+        const soundToggleBtn = document.getElementById('soundToggleBtn');
+        const soundIcon = document.getElementById('soundIcon');
+        const soundText = document.getElementById('soundText');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const menuBtn = document.getElementById('menuBtn');
+
+        // Game State Variables
+        let currentLevelIndex = 0; // 0 to 4 (Levels 1 to 5)
+        let unlockedLevel = 4; // Allow user to jump into any level 1-5 immediately as requested!
+        let gameState = 'MENU'; // 'MENU', 'PLAYING', 'PAUSED', 'LEVEL_CLEAR', 'GAME_OVER'
+        let playerScore = 0;
+        let aiScore = 0;
+        let animationFrameId = null;
+        let toastTimeout = null;
+
+        // Entities
+        let width = 800;
+        let height = 500;
+
+        const player = {
+            x: 24,
+            y: 200,
+            w: 14,
+            h: 95,
+            vy: 0,
+            prevY: 200,
+            color: '#00f3ff',
+            effectTimer: 0
+        };
+
+        const ai = {
+            x: 762,
+            y: 200,
+            w: 14,
+            h: 95,
+            vy: 0,
+            targetY: 200,
+            color: '#ff007f',
+            effectTimer: 0
+        };
+
+        const ball = {
+            x: 400,
+            y: 250,
+            radius: 9,
+            vx: 8,
+            vy: 4,
+            speed: 8.5,
+            spin: 0, // Magnus curve effect
+            isSmash: false,
+            trail: [],
+            color: '#ffffff'
+        };
+
+        let activeObstacles = [];
+        let activePowerUp = null;
+        let powerUpSpawnTimer = 0;
+        let particles = [];
+        let floatingTexts = [];
+
+        // Input tracking
+        const keys = { ArrowUp: false, ArrowDown: false, KeyW: false, KeyS: false };
+        let pointerY = null;
+
+        // ==========================================
+        // 4. RESPONSIVE CANVAS SIZING
+        // ==========================================
+        function resizeCanvas() {
+            const rect = arenaContainer.getBoundingClientRect();
+            const prevWidth = width;
+            const prevHeight = height;
+
+            width = rect.width;
+            height = rect.height;
+
+            canvas.width = width;
+            canvas.height = height;
+
+            // Reposition paddles proportionally
+            player.x = Math.max(16, width * 0.03);
+            ai.x = width - Math.max(16, width * 0.03) - ai.w;
+
+            const cfg = LEVELS[currentLevelIndex];
+            const basePaddleH = Math.max(55, height * cfg.paddleHeightRatio);
+            player.h = player.effectTimer > 0 ? basePaddleH * 1.35 : basePaddleH;
+            ai.h = ai.effectTimer > 0 ? basePaddleH * 0.75 : basePaddleH;
+
+            if (prevWidth > 0 && prevHeight > 0) {
+                player.y = (player.y / prevHeight) * height;
+                ai.y = (ai.y / prevHeight) * height;
+                ball.x = (ball.x / prevWidth) * width;
+                ball.y = (ball.y / prevHeight) * height;
+            }
+
+            // Update obstacle positions on resize
+            activeObstacles.forEach(obs => {
+                obs.x = width * obs.xRatio - obs.w / 2;
+                obs.y = Math.min(height - obs.h, Math.max(0, obs.y));
+            });
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // ==========================================
+        // 5. LEVEL INITIALIZATION & UI HELPERS
+        // ==========================================
+        function renderLevelSelector() {
+            levelSelector.innerHTML = '';
+            LEVELS.forEach((lvl, idx) => {
+                const btn = document.createElement('button');
+                const isSelected = idx === currentLevelIndex;
+                btn.className = `py-2 px-1 rounded-xl font-orbitron font-bold text-xs sm:text-sm transition cursor-pointer border ${
+                    isSelected
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-cyan-300 shadow-[0_0_12px_rgba(0,243,255,0.7)] scale-105'
+                        : 'bg-slate-800/90 text-slate-300 border-slate-600 hover:border-pink-400 hover:text-white'
+                }`;
+                btn.innerText = `LVL ${lvl.level}`;
+                btn.onclick = () => {
+                    currentLevelIndex = idx;
+                    renderLevelSelector();
+                    primaryActionBtn.innerText = `PLAY LEVEL ${lvl.level}`;
+                    overlayDesc.innerHTML = `<strong class="text-yellow-300">${lvl.title}:</strong> ${lvl.description}`;
+                };
+                levelSelector.appendChild(btn);
+            });
+        }
+
+        function showToast(text, color = '#ffe600') {
+            eventToastEl.innerText = text;
+            eventToastEl.style.color = color;
+            eventToastEl.style.borderColor = color;
+            eventToastEl.style.opacity = '1';
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                eventToastEl.style.opacity = '0';
+            }, 1800);
+        }
+
+        function triggerScreenShake() {
+            arenaContainer.classList.remove('shake-active');
+            void arenaContainer.offsetWidth; // trigger reflow
+            arenaContainer.classList.add('shake-active');
+        }
+
+        function loadLevel(index) {
+            currentLevelIndex = index;
+            const cfg = LEVELS[currentLevelIndex];
+
+            playerScore = 0;
+            aiScore = 0;
+            updateScoreboard();
+
+            // Update Header UI
+            levelBadgeEl.innerText = `LEVEL ${cfg.level}`;
+            levelTitleEl.innerText = cfg.title;
+            targetScoreDisplayEl.innerText = cfg.targetScore;
+            aiNameEl.innerText = cfg.aiName;
+            aiColorIndicatorEl.style.backgroundColor = cfg.aiColor;
+            aiColorIndicatorEl.style.boxShadow = `0 0 12px ${cfg.aiColor}`;
+
+            player.color = cfg.primaryColor;
+            ai.color = cfg.aiColor;
+            player.effectTimer = 0;
+            ai.effectTimer = 0;
+
+            resizeCanvas();
+
+            player.y = height / 2 - player.h / 2;
+            ai.y = height / 2 - ai.h / 2;
+
+            // Setup level obstacles
+            activeObstacles = cfg.obstacles.map(o => ({
+                xRatio: o.xRatio,
+                x: width * o.xRatio - o.w / 2,
+                y: height * o.yRatio - o.h / 2,
+                w: o.w,
+                h: o.h,
+                vy: o.vy,
+                color: o.color
+            }));
+
+            activePowerUp = null;
+            powerUpSpawnTimer = 240; // frames before first power-up
+            particles = [];
+            floatingTexts = [];
+
+            resetBall(Math.random() > 0.5 ? 1 : -1);
+            showToast(`LEVEL ${cfg.level}: ${cfg.title.toUpperCase()}`, cfg.primaryColor);
+        }
+
+        function resetBall(direction = 1) {
+            const cfg = LEVELS[currentLevelIndex];
+            // Scale speed subtly for mobile vs desktop width so playability feels fair and snappy
+            const widthScale = Math.max(0.75, Math.min(1.15, width / 900));
+            ball.speed = cfg.ballBaseSpeed * widthScale;
+            ball.x = width / 2;
+            ball.y = height / 2;
+
+            // Launch angle between -32 and +32 degrees (avoiding flat horizontal or overly vertical)
+            const angle = (Math.random() * 0.9 - 0.45);
+            ball.vx = Math.cos(angle) * ball.speed * direction;
+            ball.vy = Math.sin(angle) * ball.speed;
+            ball.spin = 0;
+            ball.isSmash = false;
+            ball.trail = [];
+            ball.color = '#ffffff';
+        }
+
+        function updateScoreboard() {
+            playerScoreEl.innerText = playerScore;
+            aiScoreEl.innerText = aiScore;
+        }
+
+        // ==========================================
+        // 6. PARTICLE & VISUAL EFFECTS SYSTEM
+        // ==========================================
+        function createParticles(x, y, color, count = 18, speedMult = 1) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const spd = (Math.random() * 5 + 1.5) * speedMult;
+                particles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * spd,
+                    vy: Math.sin(angle) * spd,
+                    radius: Math.random() * 3.5 + 1.5,
+                    alpha: 1,
+                    decay: Math.random() * 0.03 + 0.02,
+                    color
+                });
+            }
+        }
+
+        function addFloatingText(x, y, text, color) {
+            floatingTexts.push({
+                x,
+                y,
+                text,
+                color,
+                alpha: 1,
+                vy: -1.5
+            });
+        }
+
+        // ==========================================
+        // 7. POWER-UPS SYSTEM (INTERACTIVE ORBS)
+        // ==========================================
+        const POWERUP_TYPES = [
+            { type: 'EXPAND', label: 'MEGA PADDLE', color: '#00ff66', icon: '↕' },
+            { type: 'SHRINK_AI', label: 'SHRINK AI', color: '#ff007f', icon: '⚡' },
+            { type: 'FIREBALL', label: 'HYPER SMASH', color: '#ffe600', icon: '🔥' }
+        ];
+
+        function spawnPowerUp() {
+            const p = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+            activePowerUp = {
+                x: width * (0.3 + Math.random() * 0.4),
+                y: height * (0.2 + Math.random() * 0.6),
+                radius: 18,
+                pulse: 0,
+                ...p
+            };
+        }
+
+        function applyPowerUp(powerUp) {
+            audio.playPowerUp();
+            createParticles(powerUp.x, powerUp.y, powerUp.color, 25, 1.3);
+            showToast(`⚡ ${powerUp.label}!`, powerUp.color);
+
+            const cfg = LEVELS[currentLevelIndex];
+            const basePaddleH = Math.max(55, height * cfg.paddleHeightRatio);
+
+            if (powerUp.type === 'EXPAND') {
+                player.effectTimer = 480; // 8 seconds
+                player.h = basePaddleH * 1.38;
+                addFloatingText(player.x + 30, player.y, "+SIZE!", powerUp.color);
+            } else if (powerUp.type === 'SHRINK_AI') {
+                ai.effectTimer = 420; // 7 seconds
+                ai.h = basePaddleH * 0.72;
+                addFloatingText(ai.x - 40, ai.y, "-AI SIZE!", powerUp.color);
+            } else if (powerUp.type === 'FIREBALL') {
+                ball.isSmash = true;
+                ball.color = '#ffe600';
+                ball.vx *= 1.25;
+                ball.vy *= 1.25;
+                addFloatingText(ball.x, ball.y - 15, "OVERDRIVE!", powerUp.color);
+            }
+        }
+
+        // ==========================================
+        // 8. CORE GAME LOGIC & HARD AI
+        // ==========================================
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            const cfg = LEVELS[currentLevelIndex];
+            const basePaddleH = Math.max(55, height * cfg.paddleHeightRatio);
+
+            // 1. Update Effect Timers
+            if (player.effectTimer > 0) {
+                player.effectTimer--;
+                if (player.effectTimer === 0) player.h = basePaddleH;
+            }
+            if (ai.effectTimer > 0) {
+                ai.effectTimer--;
+                if (ai.effectTimer === 0) ai.h = basePaddleH;
+            }
+
+            // 2. Player Movement (Keyboard + Smooth Pointer/Touch)
+            player.prevY = player.y;
+            const keySpeed = Math.max(9, height * 0.018);
+
+            if (keys.ArrowUp || keys.KeyW) {
+                player.y -= keySpeed;
+                pointerY = null; // Keyboard overrides pointer until pointer moves again
+            }
+            if (keys.ArrowDown || keys.KeyS) {
+                player.y += keySpeed;
+                pointerY = null;
+            }
+
+            if (pointerY !== null) {
+                const targetPlayerY = pointerY - player.h / 2;
+                player.y += (targetPlayerY - player.y) * 0.35; // Ultra-responsive tracking
+            }
+
+            // Clamp player inside arena
+            player.y = Math.max(4, Math.min(height - player.h - 4, player.y));
+            player.vy = player.y - player.prevY;
+
+            // 3. Hard-Difficulty Predictive AI Movement
+            const heightScale = Math.max(0.75, Math.min(1.25, height / 520));
+            const maxAiStep = cfg.aiSpeed * heightScale;
+
+            if (ball.vx > 0) {
+                // Ball moving towards AI: predict landing Y with bounce reflection!
+                const distToAi = ai.x - ball.x;
+                const timeToReach = distToAi / ball.vx;
+                let predictedY = ball.y + (ball.vy + ball.spin * timeToReach * 0.5) * timeToReach;
+
+                // Simulate top/bottom wall bounces in AI's brain
+                let bounceGuard = 0;
+                while ((predictedY < 0 || predictedY > height) && bounceGuard < 5) {
+                    if (predictedY < 0) predictedY = -predictedY;
+                    if (predictedY > height) predictedY = 2 * height - predictedY;
+                    bounceGuard++;
+                }
+
+                // Add slight level-dependent humanizer offset + deliberate edge aiming on higher levels
+                const edgeOffset = (currentLevelIndex >= 2) ? Math.sin(Date.now() * 0.004) * (ai.h * 0.28) : 0;
+                ai.targetY = predictedY - ai.h / 2 + edgeOffset;
+            } else {
+                // Ball moving away: AI smartly returns to center guard stance
+                ai.targetY = height / 2 - ai.h / 2;
+            }
+
+            const aiDiff = ai.targetY - ai.y;
+            if (Math.abs(aiDiff) > cfg.aiReactionError) {
+                ai.y += Math.sign(aiDiff) * Math.min(Math.abs(aiDiff), maxAiStep);
+            }
+            ai.y = Math.max(4, Math.min(height - ai.h - 4, ai.y));
+
+            // 4. Update Dynamic Obstacles (Levels 2 - 5)
+            activeObstacles.forEach(obs => {
+                if (obs.vy !== 0) {
+                    obs.y += obs.vy * heightScale;
+                    if (obs.y <= 8) {
+                        obs.y = 8;
+                        obs.vy = Math.abs(obs.vy);
+                    } else if (obs.y + obs.h >= height - 8) {
+                        obs.y = height - obs.h - 8;
+                        obs.vy = -Math.abs(obs.vy);
+                    }
+                }
+            });
+
+            // 5. Power-Up Spawning & Collision
+            if (cfg.powerUpsEnabled) {
+                if (!activePowerUp) {
+                    powerUpSpawnTimer--;
+                    if (powerUpSpawnTimer <= 0) {
+                        spawnPowerUp();
+                        powerUpSpawnTimer = 420;
+                    }
+                } else {
+                    activePowerUp.pulse += 0.08;
+                    const dx = ball.x - activePowerUp.x;
+                    const dy = ball.y - activePowerUp.y;
+                    if (Math.hypot(dx, dy) < ball.radius + activePowerUp.radius) {
+                        applyPowerUp(activePowerUp);
+                        activePowerUp = null;
+                    }
+                }
+            }
+
+            // 6. Ball Physics & Spin (Magnus Effect)
+            ball.vy += ball.spin;
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+
+            // Save motion trail
+            ball.trail.push({ x: ball.x, y: ball.y, isSmash: ball.isSmash });
+            if (ball.trail.length > 14) ball.trail.shift();
+
+            // Top & Bottom Wall Collisions
+            if (ball.y - ball.radius <= 0) {
+                ball.y = ball.radius;
+                ball.vy = Math.abs(ball.vy);
+                ball.spin *= 0.6;
+                audio.playWallHit();
+                createParticles(ball.x, ball.y, '#00f3ff', 8, 0.7);
+            } else if (ball.y + ball.radius >= height) {
+                ball.y = height - ball.radius;
+                ball.vy = -Math.abs(ball.vy);
+                ball.spin *= 0.6;
+                audio.playWallHit();
+                createParticles(ball.x, ball.y, '#ff007f', 8, 0.7);
+            }
+
+            // Paddle Collision Helper
+            const maxSpeed = cfg.ballMaxSpeed * Math.max(0.8, width / 900);
+
+            // Player Paddle Hit
+            if (
+                ball.vx < 0 &&
+                ball.x - ball.radius <= player.x + player.w &&
+                ball.x + ball.radius >= player.x &&
+                ball.y + ball.radius >= player.y &&
+                ball.y - ball.radius <= player.y + player.h
+            ) {
+                ball.x = player.x + player.w + ball.radius;
+                const hitOffset = (ball.y - (player.y + player.h / 2)) / (player.h / 2); // -1 to 1
+                const bounceAngle = hitOffset * (Math.PI / 3.2); // up to ~56 deg
+
+                // Check if player swung paddle fast -> SMASH CURVE SHOT!
+                const isSmash = Math.abs(player.vy) > 5.5;
+                ball.isSmash = isSmash;
+                ball.speed = Math.min(maxSpeed, ball.speed * (isSmash ? 1.12 : 1.04));
+                ball.vx = Math.cos(bounceAngle) * ball.speed;
+                ball.vy = Math.sin(bounceAngle) * ball.speed;
+
+                // Apply spin curve based on paddle movement
+                ball.spin = Math.max(-0.22, Math.min(0.22, player.vy * 0.014));
+                ball.color = isSmash ? '#ffe600' : player.color;
+
+                audio.playPaddleHit(isSmash);
+                createParticles(ball.x, ball.y, ball.color, isSmash ? 24 : 14, isSmash ? 1.4 : 1);
+                if (isSmash) {
+                    triggerScreenShake();
+                    addFloatingText(ball.x + 20, ball.y - 10, "CURVE SMASH!", "#ffe600");
+                }
+            }
+
+            // AI Paddle Hit
+            if (
+                ball.vx > 0 &&
+                ball.x + ball.radius >= ai.x &&
+                ball.x - ball.radius <= ai.x + ai.w &&
+                ball.y + ball.radius >= ai.y &&
+                ball.y - ball.radius <= ai.y + ai.h
+            ) {
+                ball.x = ai.x - ball.radius;
+                const hitOffset = (ball.y - (ai.y + ai.h / 2)) / (ai.h / 2);
+                const bounceAngle = hitOffset * (Math.PI / 3.2);
+
+                const aiSmash = currentLevelIndex >= 2 && Math.abs(hitOffset) > 0.65;
+                ball.isSmash = aiSmash;
+                ball.speed = Math.min(maxSpeed, ball.speed * (aiSmash ? 1.09 : 1.03));
+                ball.vx = -Math.cos(bounceAngle) * ball.speed;
+                ball.vy = Math.sin(bounceAngle) * ball.speed;
+                ball.spin = aiSmash ? -hitOffset * 0.14 : 0;
+                ball.color = aiSmash ? '#ff2a2a' : ai.color;
+
+                audio.playPaddleHit(aiSmash);
+                createParticles(ball.x, ball.y, ball.color, aiSmash ? 20 : 12, 1.1);
+                if (aiSmash) triggerScreenShake();
+            }
+
+            // Obstacle Collisions (Levels 2 - 5)
+            activeObstacles.forEach(obs => {
+                if (
+                    ball.x + ball.radius > obs.x &&
+                    ball.x - ball.radius < obs.x + obs.w &&
+                    ball.y + ball.radius > obs.y &&
+                    ball.y - ball.radius < obs.y + obs.h
+                ) {
+                    // Determine horizontal vs vertical collision side
+                    const overlapLeft = (ball.x + ball.radius) - obs.x;
+                    const overlapRight = (obs.x + obs.w) - (ball.x - ball.radius);
+                    const overlapTop = (ball.y + ball.radius) - obs.y;
+                    const overlapBottom = (obs.y + obs.h) - (ball.y - ball.radius);
+
+                    const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+                    if (minOverlap === overlapLeft || minOverlap === overlapRight) {
+                        ball.vx = -ball.vx;
+                        ball.x += minOverlap === overlapLeft ? -overlapLeft : overlapRight;
+                    } else {
+                        ball.vy = -ball.vy;
+                        ball.y += minOverlap === overlapTop ? -overlapTop : overlapBottom;
+                    }
+
+                    audio.playWallHit();
+                    createParticles(ball.x, ball.y, obs.color, 15, 1.1);
+                }
+            });
+
+            // 7. Scoring Detection
+            if (ball.x + ball.radius < 0) {
+                // AI Scores
+                aiScore++;
+                updateScoreboard();
+                audio.playScore(false);
+                triggerScreenShake();
+                createParticles(20, ball.y, ai.color, 35, 1.6);
+                checkRoundEnd(false);
+            } else if (ball.x - ball.radius > width) {
+                // Player Scores
+                playerScore++;
+                updateScoreboard();
+                audio.playScore(true);
+                triggerScreenShake();
+                createParticles(width - 20, ball.y, player.color, 35, 1.6);
+                checkRoundEnd(true);
+            }
+
+            // 8. Update Particles & Floating Texts
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) particles.splice(i, 1);
+            }
+
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y += ft.vy;
+                ft.alpha -= 0.02;
+                if (ft.alpha <= 0) floatingTexts.splice(i, 1);
+            }
+        }
+
+        function checkRoundEnd(playerScored) {
+            const cfg = LEVELS[currentLevelIndex];
+
+            if (playerScore >= cfg.targetScore) {
+                audio.playLevelUp();
+                if (currentLevelIndex < LEVELS.length - 1) {
+                    gameState = 'LEVEL_CLEAR';
+                    showOverlay(
+                        `LEVEL ${cfg.level} CLEARED!`,
+                        `VICTORY VS ${cfg.aiName}`,
+                        `Awesome reflexes! Ready for <strong class="text-yellow-300">Level ${cfg.level + 1}: ${LEVELS[currentLevelIndex + 1].title}</strong>?`,
+                        `NEXT: LEVEL ${cfg.level + 1}`
+                    );
+                } else {
+                    gameState = 'GAME_OVER';
+                    showOverlay(
+                        `CHAMPION OF THE GRID`,
+                        `ALL 5 LEVELS CONQUERED!`,
+                        `Unbelievable! You defeated <strong class="text-yellow-300">OMEGA GOD-AI</strong> on Hardcore Difficulty!`,
+                        `PLAY AGAIN (LEVEL 1)`
+                    );
+                }
+            } else if (aiScore >= cfg.targetScore) {
+                gameState = 'GAME_OVER';
+                showOverlay(
+                    `DEFEATED ON LEVEL ${cfg.level}`,
+                    `GAME OVER`,
+                    `${cfg.aiName} dominated the arena (${playerScore} - ${aiScore}). Adjust your timing and try again!`,
+                    `RETRY LEVEL ${cfg.level}`
+                );
+            } else {
+                // Continue match: serve towards the scorer
+                resetBall(playerScored ? -1 : 1);
+            }
+        }
+
+        function showOverlay(badge, title, desc, btnText) {
+            overlayBadge.innerText = badge;
+            overlayTitle.innerText = title;
+            overlayDesc.innerHTML = desc;
+            primaryActionBtn.innerText = btnText;
+            renderLevelSelector();
+            gameOverlay.classList.remove('hidden');
+            gameOverlay.classList.add('flex');
+        }
+
+        function hideOverlay() {
+            gameOverlay.classList.add('hidden');
+            gameOverlay.classList.remove('flex');
+        }
+
+        // ==========================================
+        // 9. RENDERING ENGINE (NEON CANVAS)
+        // ==========================================
+        function draw() {
+            const cfg = LEVELS[currentLevelIndex];
+
+            // Clear background with subtle trail fade
+            ctx.fillStyle = '#070314';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw Cyberpunk Grid
+            ctx.strokeStyle = cfg.bgGridColor;
+            ctx.lineWidth = 1;
+            const gridSize = 40;
+            for (let x = 0; x < width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+
+            // Center Dashed Neon Line & Circle
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([12, 12]);
+            ctx.beginPath();
+            ctx.moveTo(width / 2, 0);
+            ctx.lineTo(width / 2, height);
+            ctx.stroke();
+
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.arc(width / 2, height / 2, Math.min(width, height) * 0.14, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw Level Obstacles (Pillars / Laser Barriers)
+            activeObstacles.forEach(obs => {
+                ctx.save();
+                ctx.shadowBlur = 18;
+                ctx.shadowColor = obs.color;
+                ctx.fillStyle = obs.color;
+                ctx.beginPath();
+                ctx.roundRect(obs.x, obs.y, obs.w, obs.h, 8);
+                ctx.fill();
+
+                // Inner white core
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.roundRect(obs.x + 4, obs.y + 6, obs.w - 8, obs.h - 12, 4);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // Draw Power-Up Orb
+            if (activePowerUp) {
+                const p = activePowerUp;
+                const pulseRadius = p.radius + Math.sin(p.pulse) * 4;
+                ctx.save();
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = p.color;
+                ctx.strokeStyle = p.color;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, pulseRadius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 16px Orbitron';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(p.icon, p.x, p.y);
+                ctx.restore();
+            }
+
+            // Draw Ball Motion Trail
+            ball.trail.forEach((pt, idx) => {
+                const ratio = idx / ball.trail.length;
+                ctx.save();
+                ctx.globalAlpha = ratio * 0.45;
+                ctx.fillStyle = pt.isSmash ? '#ffe600' : ball.color;
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, ball.radius * ratio, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // Draw Ball
+            ctx.save();
+            ctx.shadowBlur = ball.isSmash ? 25 : 16;
+            ctx.shadowColor = ball.isSmash ? '#ffe600' : ball.color;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Draw Player Paddle
+            drawNeonPaddle(player.x, player.y, player.w, player.h, player.color);
+
+            // Draw AI Paddle
+            drawNeonPaddle(ai.x, ai.y, ai.w, ai.h, ai.color);
+
+            // Draw Particles
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = p.color;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // Draw Floating Callout Texts
+            floatingTexts.forEach(ft => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.alpha);
+                ctx.font = 'bold 14px Orbitron';
+                ctx.fillStyle = ft.color;
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = ft.color;
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            });
+
+            // Draw Pause Watermark if paused
+            if (gameState === 'PAUSED') {
+                ctx.save();
+                ctx.fillStyle = 'rgba(6, 2, 18, 0.65)';
+                ctx.fillRect(0, 0, width, height);
+                ctx.font = '900 36px Orbitron';
+                ctx.fillStyle = '#00f3ff';
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#00f3ff';
+                ctx.fillText('PAUSED', width / 2, height / 2);
+                ctx.restore();
+            }
+        }
+
+        function drawNeonPaddle(x, y, w, h, color) {
+            ctx.save();
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = color;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, 8);
+            ctx.fill();
+
+            // Bright inner highlight
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.roundRect(x + 3, y + 4, w - 6, h - 8, 4);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // ==========================================
+        // 10. MAIN ANIMATION LOOP
+        // ==========================================
+        function gameLoop() {
+            update();
+            draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // ==========================================
+        // 11. EVENT LISTENERS (MOUSE, TOUCH, KEYS, UI)
+        // ==========================================
+        // Keyboard Listeners
+        window.addEventListener('keydown', (e) => {
+            if (e.code in keys) {
+                keys[e.code] = true;
+                e.preventDefault();
+            }
+            if (e.code === 'Space' && (gameState === 'PLAYING' || gameState === 'PAUSED')) {
+                togglePause();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code in keys) {
+                keys[e.code] = false;
+            }
+        });
+
+        // Mouse Control on Canvas
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            pointerY = e.clientY - rect.top;
+        });
+
+        // Touch Control on Canvas
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            pointerY = e.touches[0].clientY - rect.top;
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            pointerY = e.touches[0].clientY - rect.top;
+        }, { passive: false });
+
+        // Primary Overlay Button (Start / Next Level / Retry)
+        primaryActionBtn.addEventListener('click', async () => {
+            await audio.init();
+            if (gameState === 'LEVEL_CLEAR') {
+                currentLevelIndex = Math.min(LEVELS.length - 1, currentLevelIndex + 1);
+            } else if (gameState === 'GAME_OVER' && playerScore >= LEVELS[currentLevelIndex].targetScore) {
+                currentLevelIndex = 0; // Restart campaign from Level 1 after beating Level 5
+            }
+            loadLevel(currentLevelIndex);
+            hideOverlay();
+            gameState = 'PLAYING';
+        });
+
+        // Sound Toggle
+        soundToggleBtn.addEventListener('click', async () => {
+            await audio.init();
+            audio.enabled = !audio.enabled;
+            soundIcon.innerText = audio.enabled ? '🔊' : '🔇';
+            soundText.innerText = audio.enabled ? 'SFX ON' : 'MUTED';
+        });
+
+        // Pause Button
+        function togglePause() {
+            if (gameState === 'PLAYING') {
+                gameState = 'PAUSED';
+                pauseBtn.innerText = '▶ RESUME';
+            } else if (gameState === 'PAUSED') {
+                gameState = 'PLAYING';
+                pauseBtn.innerText = '⏸ PAUSE';
+            }
+        }
+        pauseBtn.addEventListener('click', togglePause);
+
+        // Levels Menu Button
+        menuBtn.addEventListener('click', () => {
+            gameState = 'MENU';
+            pauseBtn.innerText = '⏸ PAUSE';
+            const cfg = LEVELS[currentLevelIndex];
+            showOverlay(
+                'SELECT STAGE',
+                'NEON PULSE PONG',
+                `<strong class="text-yellow-300">${cfg.title}:</strong> ${cfg.description}`,
+                `PLAY LEVEL ${cfg.level}`
+            );
+        });
+
+        // Start Everything on Window Load
+        window.onload = function () {
+            resizeCanvas();
+            renderLevelSelector();
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
